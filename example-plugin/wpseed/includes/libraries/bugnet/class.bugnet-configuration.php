@@ -17,11 +17,6 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class BugNet_Configuration {
     
-    // Constants for package (developer) control over main abilitie. 
-    const BUGNET_EVENT_HANDLING = true;
-    const BUGNET_LOG_HANDLING   = true;
-    const BUGNET_TRACE_HANDLING = true;
-    
     // Level constants. 
     const EMERGENCY = 'emergency'; // 'emergency': System is unusable.
     const ALERT     = 'alert';     // 'alert': Action must be taken immediately.
@@ -38,9 +33,9 @@ class BugNet_Configuration {
     public function __construct() {
  
         // Set switches.
-        $this->is_events_enabled = get_option( 'bugnet_events_switch', false );
-        $this->is_logging_enabled = get_option( 'bugnet_logging_switch', false );
-        $this->is_tracing_enabled = get_option( 'bugnet_tracing_switch', false );
+        $this->is_events_enabled = get_option( 'wpseed_bugnet_activate_events', false );
+        $this->is_logging_enabled = get_option( 'wpseed_bugnet_activate_log', false );
+        $this->is_tracing_enabled = get_option( 'wpseed_bugnet_activate_tracing', false );
 
     } 
     

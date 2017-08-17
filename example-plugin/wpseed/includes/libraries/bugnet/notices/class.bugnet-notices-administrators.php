@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @package  BugNet
  * @since    1.0
  */
-class BugNet_Notices_Adminstrators {
+class BugNet_Notices_Administrators {
     
     public $notices = array();
     

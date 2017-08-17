@@ -27,17 +27,30 @@ if( !class_exists( 'BugNet' ) ) :
  */
 class BugNet {
     
+    /**
+    * This will hold the WP_Error object. 
+    * 
+    * @var mixed
+    */
+    public $bugnet_wp_errors = null;
+    
     public function __construct() {
-
+        global $bugnet_wp_errors;
+        $bugnet_wp_errors = new WP_Error();
+        
         // Load the configuration values.
         require_once( plugin_basename( '/class.bugnet-configuration.php' ) );
         $this->config = new BugNet_Configuration();
-          
+        
+        // Load files both administration and public requests require.  
         $this->dependencies();
+        
+        // Hook into the final WP hook and process traces gathered in WP_Error. 
+        add_action( 'shutdown', array( $this, 'process_traces' ) );
     }    
     
     /**
-    * Include package classes. 
+    * Include dependent files and create globally depending objects.
     * 
     * @version 1.0
     */
@@ -45,7 +58,7 @@ class BugNet {
         
         require_once( plugin_basename( '/class.bugnet-rules.php' ) );
         require_once( plugin_basename( '/handlers/class.bugnet-handler-email.php' ) );
-        require_once( plugin_basename( '/handlers/class.bugnet-handler-logfile.php' ) );
+        require_once( plugin_basename( '/handlers/class.bugnet-handler-logfiles.php' ) );
         require_once( plugin_basename( '/handlers/class.bugnet-handler-restapi.php' ) );
         require_once( plugin_basename( '/handlers/class.bugnet-handler-wpdb.php' ) );
         require_once( plugin_basename( '/handlers/class.bugnet-handler-tracing.php' ) );
@@ -57,16 +70,16 @@ class BugNet {
         require_once( plugin_basename( '/reports/class.bugnet-reports-eventsnapshot.php' ) );
         require_once( plugin_basename( '/reports/class.bugnet-reports-tracecomplete.php' ) );
         
-        $this->rules                            = new BugNet_Rules();
+        $this->rules                           = new BugNet_Rules();
         $this->handler_emails                  = new BugNet_Handler_Email();
-        $this->handler_logfiles               = new BugNet_Handler_LogFiles();
-        $this->handler_restapi                = new BugNet_Handler_RESTAPI();
-        $this->handler_wpdb                   = new BugNet_Handler_WPDB();
+        $this->handler_logfiles                = new BugNet_Handler_LogFiles();
+        $this->handler_restapi                 = new BugNet_Handler_RESTAPI();
+        $this->handler_wpdb                    = new BugNet_Handler_WPDB();
         $this->handler_tracing                 = new BugNet_Handler_Tracing();
         $this->notices_administratorspermanent = new BugNet_Notices_AdministratorPermanent();
         $this->notices_administrators          = new BugNet_Notices_Administrators();
-        $this->notices_wpdieadminsafe          = new BugNet_Notice_WPDIEAdministrators();
-        $this->notices_wpdieadminvisitors      = new BugNet_Notice_WPDIEPublic();
+        $this->notices_wpdieadminsafe          = new BugNet_Notices_WPDIEAdministrators();
+        $this->notices_wpdieadminvisitors      = new BugNet_Notices_WPDIEPublic();
         $this->reports_dailysummary            = new BugNet_Reports_DailySummary();
         $this->reports_eventsnapshot           = new BugNet_Reports_EventSnapshot();
         $this->reports_tracecomplete           = new BugNet_Reports_TraceComplete();
@@ -100,9 +113,6 @@ class BugNet {
      * @version 1.0
      */
     public function event( $tag, $level, $line, $file, $title, $message, $atts = array() ) {
-        
-        // Confirm constant switch for this service is set to true. 
-        if( BUGNET_EVENT_HANDLING !== true ) { return; }
         
         // Confirm administrator setting for this service is 'yes'. 
         if( $this->config->is_events_enabled !== 'yes' ) { return; }
@@ -194,9 +204,6 @@ class BugNet {
      */
     public function log( $tag, $message, $atts = array(), $flood_prevention = true ) {
 
-        // Confirm constant switch for this service is set to true. 
-        if( BUGNET_LOG_HANDLING !== true ) { return; }
- 
         // Confirm administrator setting for this service is 'yes'. 
         if( $this->config->is_logging_enabled !== 'yes' ) { return; }
                
@@ -252,43 +259,36 @@ class BugNet {
     * 
     * @version 1.0
     */
-    public function trace( $tag, $line, $function, $end = false, $note = null, $atts = array() ) {
-
-        // Confirm constant switch for this service is set to true. 
-        if( BUGNET_TRACE_HANDLING !== true ) { return; }
+    public function trace( $tag, $line, $function, $file, $end, $message, $atts = array() ) {
 
         // Confirm administrator setting for this service is 'yes'. 
         if( $this->config->is_tracing_enabled !== 'yes' ) { return; }
-                
+                        
         // Set our default arguments. 
         $defaults = array(
+                'message'         => $message,
                 'maintracefile'   => false,     // Log to the main trace text file.
                 'newtracefile'    => false,     // Log to a file for this trace. 
                 'wpdb'            => false,     // Log to the database.
-                'cache'           => true,      // Log to transient cache.
-                'line'            => $line,     // __LINE__ 
-                'function'        => $function, // __FUNCTION__ 
+                'cache'           => true,      // Log to transient cache. 
                 'class'           => null,       // __CLASS__
-                'file'            => null,      // __FILE__
         );
 
-        $args = wp_parse_args( $args, $defaults );
+        $args = wp_parse_args( $atts, $defaults );
         
         // Build a data array to make it easier to access later. 
-        $data = array( 'line'     => $args['line'], 
-                       'function' => $args['line'], 
-                       'class'    => $args['line'], 
-                       'file'     => $args['line'], 
+        $info = array( 'line'     => $line, 
+                       'function' => $function, 
+                       'class'    => $args['class'], 
+                       'file'     => $file, 
         );
+
+        $this->handler_tracing->do_trace( $tag, $args, $info ); 
         
-        if( false === $end )
-        {
-            $this->handler_tracing->do_trace( $tag, $args, $data ); 
-        } 
-        elseif( true === $end )
-        {
+        if( true === $end )
+        {            
             // Ending the trace results in output.
-            $this->handler_tracing->end_trace( $tag, $args, $data );                
+            $this->handler_tracing->end_trace( $tag );                
         }                  
 
     }
@@ -349,6 +349,18 @@ class BugNet {
             return false;// Shortlife transient has not expired.
         }    
         return true;
+    }
+    
+    /**
+    * Processes BugNet traces stored in WP_Error by storing them
+    * in files, database or transient.
+    * 
+    * This method is intended for the latest possible hook in WP: 'shutdown'
+    * 
+    * @version 1.0
+    */
+    public function process_traces() {
+        $this->handler_tracing->process_traces();          
     }
  
 }

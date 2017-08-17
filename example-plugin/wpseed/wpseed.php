@@ -62,6 +62,8 @@ final class WordPressPluginSeed {
      * @var WPSeed_Session
      */
     public $session = null; 
+    
+    public $wpseed_debugger = null;
         
     /**
      * Main WPSeed Instance.
@@ -111,10 +113,12 @@ final class WordPressPluginSeed {
      * WPSeed Constructor.
      */
     public function __construct() {
+
         $this->define_constants();
         $this->includes();
         $this->init_hooks();
-
+        $this->load_debugger();
+        
         do_action( 'wpseed_loaded' );
     }
 
@@ -128,12 +132,28 @@ final class WordPressPluginSeed {
         register_deactivation_hook( __FILE__, array( 'WPSeed_Install', 'deactivate' ) );
         add_action( 'init', array( $this, 'init' ), 0 );
     }
+    
+    /**
+    * Load a debugging class for logging, tracing, tracking, monitoring,
+    * reporting and...debugging!
+    * 
+    * It has to be the one...the only...BugNet Library! But you can replace
+    * BugNet and load something else here if you wish. 
+    * 
+    * @version 1.0o
+    */
+    public function load_debugger() {
+        global $wpseed_debugger;
+        if( 'yes' !== get_option( 'wpseed_activate_bugnet' ) ) { return; }
+        include_once( WPSEED_PLUGIN_DIR_PATH . 'includes/libraries/bugnet/class.bugnet.php' );
+        $wpseed_debugger = new BugNet();
+    }
 
     /**
      * Define WPSeed Constants.
      */
     private function define_constants() {
-        
+
         $upload_dir = wp_upload_dir();
         
         // Main (package) constants.
@@ -208,6 +228,10 @@ final class WordPressPluginSeed {
         // Before init action.
         do_action( 'before_wpseed_init' );
 
+        // Perform a test trace using BugNet.
+        global $wpseed_debugger;
+        $wpseed_debugger->trace( 'testtrace', __LINE__, __FUNCTION__, __FILE__, false, 'My Test messsage', array() );
+                                  
         // Init action.
         do_action( 'wpseed_init' );
     }
@@ -276,7 +300,4 @@ if( !function_exists( 'WPSeed' ) ) {
 
     // Global for backwards compatibility.
     $GLOBALS['wpseed'] = WPSeed();
-    
-    //$wpseed_debug = new WPSeed_Debug();
-    //$wpseed_debug->debugmode();
 }

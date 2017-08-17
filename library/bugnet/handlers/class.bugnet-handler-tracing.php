@@ -17,34 +17,56 @@ if ( ! defined( 'ABSPATH' ) ) {
 class BugNet_Handler_Tracing {
     
     /**
+    * Store all trace $tags for bulk processing at
+    * the end of each request.
+    * 
+    * @var mixed
+    */
+    public $traces = array();
+    
+    /**
     * Adds another entry to the trace. Stored in WP_Error() until 
     * end_trace() is called and then the trace is stored permanently.
     * 
     * @param mixed $tag
     * @param mixed $args
-    * @param mixed $data
+    * @param mixed $info
     * 
     * @version 1.0
     */
-    public function do_trace( $tag, $args, $data ) {
-        $WP_Error = new WP_Error();
-        $WP_Error->add( $tag, $args['note'], $data );
-        unset( $WP_Error );     
+    public function do_trace( $tag, $args, $info ) {   
+        global $bugnet_wp_errors;
+   
+        // Add trace to $traces array.
+        $this->traces[ $tag ] = time();
+        
+        // Prepare a single $data array as required by WP_Error. 
+        $data = array( 'args' => $args, 'info' => $info );
+        
+        // We use WP_Error which holds consequential entries as a series. 
+        $bugnet_wp_errors->add( $tag, $args['message'], $data );     
     }      
     
     /**
     * Calls do_trace() and then end() to force output now
-    * rather than waiting until wp_footer is loaded. 
+    * rather than waiting until the WordPress footer is loaded. 
     * 
     * @param mixed $tag
     * @param mixed $args
     * @param mixed $data
     */
-    public function end_trace( $tag, $args, $data ) {
-        $this->do_trace( $tag, $args, $data );
+    public function end_trace( $tag ) {
 
+        // We need the WP_Errors object that was made global.
+        global $bugnet_wp_errors; 
+        $data = $bugnet_wp_errors->get_error_data( $tag );
+        $args = $data['args'];
+
+        // Avoid processing this trace again at the end of the request. 
+        if( isset( $this->traces[ $tag ] ) ){ unset( $this->traces[ $tag ] ); }
+        
         // Insert data to permament records, start with main trace file. 
-        if( true === $args['maintracefile'])
+        if( true === $args['maintracefile'] )
         {
             // TODO: write trace to the main trace file
         }
@@ -56,7 +78,7 @@ class BugNet_Handler_Tracing {
         }
         
         // Database Insert (BugNet custom table)
-        if( true === $args['wpdb']) 
+        if( true === $args['wpdb'] ) 
         {
             // TODO: insert to BugNet custom table.    
         }
@@ -140,5 +162,30 @@ class BugNet_Handler_Tracing {
         }
         
         set_transient( 'bugnet_' . $tag, $data, $life_seconds );   
+    }
+    
+    /**
+    * Called as late as possible to process all traces and
+    * store their data.
+    * 
+    * @version 1.0
+    */
+    public function process_traces() {
+        global $bugnet_wp_errors;
+
+        if( empty( $this->traces ) ) { return; }
+        if( !is_array( $this->traces ) ){ return; }
+        
+        $WP_Error = new WP_Error();
+        
+        foreach( $this->traces as $tag => $time ) {
+            
+            $data = $bugnet_wp_errors->get_error_data( $tag );
+
+            $this->end_trace( $tag, $data['args'], $data['info'] ); 
+        }  
+        
+        // We are done with $bugnet_wp_errors.
+        unset( $bugnet_wp_errors );  
     }
 }

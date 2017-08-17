@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @package  BugNet/Reports
  * @since    1.0
  */
-class BugNet_Report_Daily_Summary {
+class BugNet_Reports_DailySummary {
     
     public function __construct() {
         

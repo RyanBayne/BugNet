@@ -19,9 +19,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 class BugNet_Notices_AdministratorPermanent {
     
     public function __construct() {
-        add_action( 'admin_notices', array( $this, 'trace_boxes' ) );    
-        add_action( 'admin_notices', array( $this, 'info_boxes' ) );    
-        add_action( 'admin_notices', array( $this, 'progress_boxes' ) );    
+        //add_action( 'admin_notices', array( $this, 'trace_boxes' ) );          
+        //add_action( 'admin_notices', array( $this, 'info_boxes' ) );    
+        //add_action( 'admin_notices', array( $this, 'report_boxes' ) );    
     }
     
     /**
@@ -33,6 +33,10 @@ class BugNet_Notices_AdministratorPermanent {
     * @todo Function is incomplete.
     */    
     public function trace_boxes( $title, $intro, $progress_array = array() ){    
+        
+        // Only do if tracing service is active.
+        if( 'yes' !== get_option( 'wpseed_bugnet_activate_tracing' ) ) { return; }
+        
         echo '
         <div class="bugnet_status_box_container">
             <div class="welcome-panel">
@@ -64,6 +68,7 @@ class BugNet_Notices_AdministratorPermanent {
     * @todo Function is incomplete.
     */
     public function report_boxes( $title, $intro, $info_area = false, $info_area_title = '', $info_area_content = '', $footer = false, $dismissable_id = false ){
+
         global $current_user;
                                                
         // handling user action - hide notice and update user meta
